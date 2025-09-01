@@ -4,7 +4,7 @@ import { ThemeToggle } from "@/components/theme-toggle"
 const STORAGE_URL =
   "https://yziafoqkerugqyjazqua.supabase.co/storage/v1/object/public/productStorage"
 
-function buildProductAssets(id: number) {
+function buildProductAssets(id: string) {
   return {
     thumbnail: `${STORAGE_URL}/${id}/thumb.webp`,
     glb: `${STORAGE_URL}/${id}/model.glb`,
@@ -12,7 +12,7 @@ function buildProductAssets(id: number) {
 }
 
 type Product = {
-  id: number
+  id: string
   name: string
   price: number
 }
@@ -43,7 +43,13 @@ export default function Home() {
   return (
     <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
       <ThemeToggle />
-      <ProductCard product={{ id: 1, name: "Product 1", price: 100 }} />
+      <ProductCard
+        product={{
+          id: "b7444b0a-f771-4794-a231-c790cef3d701",
+          name: "Product 1",
+          price: 100,
+        }}
+      />
     </div>
   )
 }
