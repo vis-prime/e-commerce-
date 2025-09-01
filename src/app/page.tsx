@@ -29,6 +29,7 @@ export function ProductCard({ product }: { product: Product }) {
         width={400}
         height={400}
         className="rounded-lg"
+        priority
       />
       <h2 className="text-xl font-semibold mt-2">{product.name}</h2>
       <p>{product.price} ₹</p>
