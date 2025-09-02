@@ -2,6 +2,7 @@
 import Image from "next/image"
 import { useProductStore } from "@/store/useProductStore"
 import React, { useEffect, useState } from "react"
+import { Button } from "./ui/button"
 
 export default function ProductsGrid() {
   const products = useProductStore((s) => s.products)
@@ -40,21 +41,12 @@ type Product = {
 }
 
 function ProductCard({ product }: { product: Product }) {
+  const addToScene = useProductStore((s) => s.addToScene)
+
   const assets = buildProductAssets(product.id)
 
-  const selectProduct = useProductStore((s) => s.selectProduct)
-
-  const onClick = React.useCallback(() => {
-    selectProduct(product.id)
-    console.log("Product selected:", product.id)
-    console.log("Store state:", useProductStore.getState())
-  }, [product.id, selectProduct])
-
   return (
-    <div
-      className="border rounded-xl p-4 shadow cursor-pointer hover:shadow-lg hover:scale-105 transition"
-      onClick={onClick}
-    >
+    <div className="border rounded-xl p-4 shadow">
       <Image
         src={assets.thumbnail}
         alt={product.name}
@@ -64,6 +56,14 @@ function ProductCard({ product }: { product: Product }) {
       />
       <h2 className="text-xl font-semibold mt-2">{product.name}</h2>
       <p>{product.price} $</p>
+      <Button
+        onClick={() => {
+          addToScene(product)
+          console.log("addToScene", useProductStore.getState())
+        }}
+      >
+        Add
+      </Button>
     </div>
   )
 }

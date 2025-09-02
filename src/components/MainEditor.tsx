@@ -7,7 +7,7 @@ import EditingArea from "./EditingArea"
 
 export default function MainEditor() {
   return (
-    <div className="h-[calc(100vh-4rem)] w-screen flex flex-col md:flex-row bg-neutral-900">
+    <div className="h-[calc(100vh-4rem)] w-screen flex flex-col md:flex-row">
       {/* Canvas pane */}
       {/* <div className=" w-full h-full relative">
         <Canvas
