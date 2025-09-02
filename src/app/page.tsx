@@ -1,6 +1,8 @@
 import Image from "next/image"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { fetchProducts } from "@/lib/fetchProducts"
+import { RapierTest } from "@/components/RapierTest"
+import MainEditor from "@/components/MainEditor"
 
 const STORAGE_URL =
   "https://yziafoqkerugqyjazqua.supabase.co/storage/v1/object/public/productStorage"
@@ -43,7 +45,7 @@ export default function Home() {
   return (
     <>
       <NavBar />
-      <ProductsGrid />
+      <MainEditor />
     </>
   )
 }
@@ -52,7 +54,7 @@ async function ProductsGrid() {
   const products = await fetchProducts()
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8 w-full max-w-7xl">
+    <div className="fixed grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8 w-full max-w-7xl">
       {products.map((product) => (
         <ProductCard key={product.id} product={product} />
       ))}
@@ -62,7 +64,7 @@ async function ProductsGrid() {
 
 function NavBar() {
   return (
-    <nav className="flex justify-between items-center p-4">
+    <nav className="flex justify-between items-center p-1 h-16 bg-accent">
       <div className="text-lg font-bold">E-Commerce</div>
       <ThemeToggle />
     </nav>
