@@ -8,13 +8,22 @@ import {
   TransformControls,
 } from "@react-three/drei"
 import { ProductInScene, useProductStore } from "@/store/useProductStore"
-import { useGLTF } from "@react-three/drei"
+import { useGLTF, Box } from "@react-three/drei"
 import * as THREE from "three"
+import {
+  Physics,
+  RigidBody,
+  CuboidCollider,
+  RapierRigidBody,
+} from "@react-three/rapier"
 
 export default function ViewingArea() {
+  const dummyRef = useRef<THREE.Mesh>(null) as React.RefObject<THREE.Mesh>
+  const setSelected = useProductStore((s) => s.setSelected)
   const onBgClick = useCallback(() => {
     // Handle background click
     console.log("Background clicked")
+    setSelected(null)
   }, [])
 
   return (
@@ -30,13 +39,16 @@ export default function ViewingArea() {
         <axesHelper />
 
         <Suspense fallback={null}>
-          <PlacedModels />
+          <Physics debug>
+            <PlacedModels />
+            <CuboidCollider position={[0, -2, 0]} args={[20, 0.5, 20]} />
+          </Physics>
           <Environment preset="city" />
         </Suspense>
 
         <OrbitControls enableDamping makeDefault />
 
-        <mesh>
+        <mesh ref={dummyRef}>
           <boxGeometry args={[0.1, 0.1, 0.1]} />
           <meshStandardMaterial color="orange" />
         </mesh>
@@ -47,20 +59,36 @@ export default function ViewingArea() {
           blur={1}
           far={10}
           resolution={256}
-          color="#000000"
+          color="#0000dd"
         />
-        <DynamicPivotControls />
+        <DynamicPivotControls dummyObject={dummyRef} />
       </Canvas>
     </div>
   )
 }
 
-function DynamicPivotControls() {
+function DynamicPivotControls({
+  dummyObject,
+}: {
+  dummyObject: React.RefObject<THREE.Mesh>
+}) {
+  const bounds = useRef(
+    new THREE.Box3(
+      new THREE.Vector3(-10, 0, -10),
+      new THREE.Vector3(10, 10, 10)
+    )
+  )
   const selectedId = useProductStore((s) => s.selectedId)
 
   const selectedNode = useProductStore((s) => s.selectedNode)
   const updateTransform = useProductStore((s) => s.updateTransform)
 
+  const selectedRigidBody = useProductStore((s) => s.selectedRigidBody)
+
+  const onMouseDown = useCallback(() => {
+    // disable rigid body so that transform control takes precedence
+    selectedRigidBody?.setEnabled(false)
+  }, [selectedRigidBody])
   const onMouseUp = useCallback(() => {
     if (!selectedNode || !selectedId) return
     updateTransform(selectedId, {
@@ -68,12 +96,31 @@ function DynamicPivotControls() {
       rotation: selectedNode.rotation.toArray(),
       scale: selectedNode.scale.toArray(),
     })
+    selectedRigidBody?.setTranslation(dummyObject.current.position, true)
+    selectedRigidBody?.setRotation(dummyObject.current.quaternion, true)
+    selectedRigidBody?.setEnabled(true)
+
     console.log("Mouse up event", useProductStore.getState())
-  }, [selectedId, selectedNode, updateTransform])
+  }, [selectedId, selectedNode, updateTransform, selectedRigidBody])
+
+  const onChange = useCallback(() => {
+    if (!selectedNode || !selectedId || !dummyObject.current) return
+
+    dummyObject.current.position.clamp(bounds.current.min, bounds.current.max)
+
+    // limit to bounds
+  }, [selectedId, selectedNode, updateTransform, selectedRigidBody])
 
   if (!selectedNode || !selectedId) return null
 
-  return <TransformControls object={selectedNode} onMouseUp={onMouseUp} />
+  return (
+    <TransformControls
+      object={dummyObject.current}
+      onChange={onChange}
+      onMouseUp={onMouseUp}
+      onMouseDown={onMouseDown}
+    />
+  )
 }
 
 function PlacedModels() {
@@ -89,8 +136,12 @@ function PlacedModels() {
 }
 
 function PlacedModel({ item }: { item: ProductInScene }) {
+  const rbRef = useRef<RapierRigidBody>(null)
+  const groupRef = useRef<THREE.Group>(null)
   const setSelected = useProductStore((s) => s.setSelected)
   const setSelectedNode = useProductStore((s) => s.setSelectedNode)
+  const setSelectedMaterials = useProductStore((s) => s.setSelectedMaterials)
+  const setSelectedRigidBody = useProductStore((s) => s.setSelectedRigidBody)
 
   const url = `https://yziafoqkerugqyjazqua.supabase.co/storage/v1/object/public/productStorage/${item.product.id}/model.glb`
   const { scene } = useGLTF(url)
@@ -103,13 +154,41 @@ function PlacedModel({ item }: { item: ProductInScene }) {
 
   const onClick = useCallback(
     (e: ThreeEvent<MouseEvent>) => {
-      console.log(e)
       e.stopPropagation()
+
+      // collect all unique materials
+      const materials: Record<
+        string,
+        THREE.MeshStandardMaterial | THREE.MeshPhysicalMaterial
+      > = {}
+      clonedScene.traverse((obj: any) => {
+        if (obj.isMesh && obj.material) {
+          if (Array.isArray(obj.material)) {
+            obj.material.forEach(
+              (
+                mat: THREE.MeshStandardMaterial | THREE.MeshPhysicalMaterial
+              ) => {
+                materials[mat.uuid] = mat
+              }
+            )
+          } else {
+            materials[obj.material.uuid] = obj.material
+          }
+        }
+      })
+
       setSelected(item.product.id)
       setSelectedNode(clonedScene)
+      setSelectedMaterials(Object.values(materials)) // store array of materials
+      if (rbRef.current) setSelectedRigidBody(rbRef.current)
+      console.log("Clicked on model", useProductStore.getState())
     },
     [clonedScene, item.product.id, setSelected]
   )
 
-  return <primitive object={clonedScene} onClick={onClick} />
+  return (
+    <RigidBody ref={rbRef} colliders="hull">
+      <primitive object={clonedScene} onClick={onClick} />
+    </RigidBody>
+  )
 }

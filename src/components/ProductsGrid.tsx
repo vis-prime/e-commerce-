@@ -13,7 +13,7 @@ export default function ProductsGrid() {
   }, [fetchAllProducts])
 
   return (
-    <div className="ring-1 p-2 rounded-2xl">
+    <div className="ring-1 p-2 rounded-2xl ring-accent shadow-md">
       <span className="font-semibold"> Products Feed</span>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 w-full max-w-7xl">
         {products.map((product) => (

@@ -2,6 +2,7 @@
 import { create } from "zustand"
 import { fetchProducts } from "@/lib/fetchProducts"
 import * as THREE from "three"
+import { RapierRigidBody } from "@react-three/rapier"
 
 type Product = {
   id: string
@@ -20,10 +21,25 @@ export type ProductInScene = {
 type ProductStore = {
   products: Product[] // fetched list
   placed: ProductInScene[] // items currently in scene
+
   selectedId: string | null
+  setSelected: (id: string | null) => void
+
   selectedNode: THREE.Object3D | null
   setSelectedNode: (matrix: THREE.Object3D | null) => void
-  setSelected: (id: string | null) => void
+
+  selectedRigidBody: RapierRigidBody | null
+  setSelectedRigidBody: (body: RapierRigidBody | null) => void
+
+  selectedMaterials: (THREE.MeshStandardMaterial | THREE.MeshPhysicalMaterial)[]
+  setSelectedMaterials: (
+    mats: (THREE.MeshStandardMaterial | THREE.MeshPhysicalMaterial)[]
+  ) => void
+  updateMaterial: (
+    matUuid: string,
+    updates: Partial<THREE.MeshStandardMaterial | THREE.MeshPhysicalMaterial>
+  ) => void
+
   fetchAllProducts: () => Promise<void>
   addToScene: (p: Product) => void
   removeFromScene: (id: string) => void
@@ -36,6 +52,22 @@ export const useProductStore = create<ProductStore>((set) => ({
   placed: [],
   selectedId: null,
   selectedNode: null,
+  selectedMaterials: [],
+
+  selectedRigidBody: null,
+  setSelectedRigidBody: (body) => set({ selectedRigidBody: body }),
+
+  setSelectedMaterials: (mats) => set({ selectedMaterials: mats }),
+  updateMaterial: (matUuid, updates) =>
+    set((state) => {
+      const mats = state.selectedMaterials
+      const mat = mats.find((m) => m.uuid === matUuid)
+      if (mat) {
+        Object.assign(mat, updates)
+        mat.needsUpdate = true
+      }
+      return { selectedMaterials: [...mats] }
+    }),
   setSelectedNode: (object) => set({ selectedNode: object }),
   setSelected: (id) => set({ selectedId: id }),
   fetchAllProducts: async () => {
