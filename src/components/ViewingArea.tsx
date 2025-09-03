@@ -6,12 +6,12 @@ import {
   Environment,
   OrbitControls,
   PivotControls,
+  TransformControls,
 } from "@react-three/drei"
 import { ProductInScene, useProductStore } from "@/store/useProductStore"
 import { useGLTF } from "@react-three/drei"
 import * as THREE from "three"
 
-const matrix = new THREE.Matrix4()
 export default function ViewingArea() {
   return (
     <div className="w-full h-full relative">
@@ -44,22 +44,19 @@ export default function ViewingArea() {
           resolution={256}
           color="#000000"
         />
-
-        <PivotControls
-          fixed
-          scale={200}
-          depthTest={false}
-          renderOrder={999999}
-          matrix={matrix}
-          autoTransform={false}
-          onDrag={(matrix_) => {
-            matrix.copy(matrix_)
-            console.log("Drag matrix:", matrix.equals(matrix_))
-          }}
-        ></PivotControls>
+        <DynamicPivotControls />
       </Canvas>
     </div>
   )
+}
+
+function DynamicPivotControls() {
+  const selectedNode = useProductStore((s) => s.selectedNode)
+  const updateTransform = useProductStore((s) => s.updateTransform)
+
+  if (!selectedNode) return null
+
+  return <TransformControls object={selectedNode} />
 }
 
 function PlacedModels() {
@@ -68,9 +65,9 @@ function PlacedModels() {
 
   return (
     <>
-      {placed.map((item, i) => (
+      {placed.map((item) => (
         <PlacedModel
-          key={item.product.id + i}
+          key={item.sceneId}
           item={item}
           selected={item.product.id === selectedId}
         />
@@ -87,22 +84,23 @@ function PlacedModel({
   selected: boolean
 }) {
   const setSelected = useProductStore((s) => s.setSelected)
-  const updateTransform = useProductStore((s) => s.updateTransform)
+  const setSelectedNode = useProductStore((s) => s.setSelectedNode)
 
   const url = `https://yziafoqkerugqyjazqua.supabase.co/storage/v1/object/public/productStorage/${item.product.id}/model.glb`
   const { scene } = useGLTF(url)
 
-  const clonedScene = useMemo(() => scene.clone(true), [item.product.id, scene])
+  const clonedScene = useMemo(() => {
+    const clone = scene.clone(true)
+    clone.position.random()
+    return clone
+  }, [item.product.id, scene])
 
   const onClick = useCallback(() => {
     setSelected(item.product.id)
-  }, [item.product.id, setSelected])
+    setSelectedNode(clonedScene)
+  }, [clonedScene, item.product.id, setSelected])
 
   const content = <primitive object={clonedScene} onClick={onClick} />
 
-  return (
-    <group matrixAutoUpdate={false} onClick={onClick}>
-      {content}
-    </group>
-  )
+  return <group onClick={onClick}>{content}</group>
 }

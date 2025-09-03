@@ -1,6 +1,7 @@
 // src/store/useProductStore.ts
 import { create } from "zustand"
 import { fetchProducts } from "@/lib/fetchProducts"
+import * as THREE from "three"
 
 type Product = {
   id: string
@@ -9,6 +10,7 @@ type Product = {
 }
 
 export type ProductInScene = {
+  sceneId: string
   product: Product
   position: [number, number, number] // optional for placing
   rotation: [number, number, number]
@@ -19,6 +21,8 @@ type ProductStore = {
   products: Product[] // fetched list
   placed: ProductInScene[] // items currently in scene
   selectedId: string | null
+  selectedNode: THREE.Object3D | null
+  setSelectedNode: (matrix: THREE.Object3D | null) => void
   setSelected: (id: string | null) => void
   fetchAllProducts: () => Promise<void>
   addToScene: (p: Product) => void
@@ -31,6 +35,8 @@ export const useProductStore = create<ProductStore>((set) => ({
   products: [],
   placed: [],
   selectedId: null,
+  selectedNode: null,
+  setSelectedNode: (object) => set({ selectedNode: object }),
   setSelected: (id) => set({ selectedId: id }),
   fetchAllProducts: async () => {
     const products = await fetchProducts()
@@ -41,6 +47,7 @@ export const useProductStore = create<ProductStore>((set) => ({
       placed: [
         ...s.placed,
         {
+          sceneId: crypto.randomUUID(),
           product,
           position: [0, 0, 0], // default, can later allow dragging
           rotation: [0, 0, 0],
