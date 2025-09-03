@@ -16,6 +16,7 @@ import {
   CuboidCollider,
   RapierRigidBody,
 } from "@react-three/rapier"
+import { RigidBodyType } from "@dimforge/rapier3d-compat"
 
 export default function ViewingArea() {
   const dummyRef = useRef<THREE.Mesh>(null) as React.RefObject<THREE.Mesh>
@@ -39,7 +40,7 @@ export default function ViewingArea() {
         <axesHelper />
 
         <Suspense fallback={null}>
-          <Physics debug>
+          <Physics debug gravity={[0, -9.81 * 0.2, 0]}>
             <PlacedModels />
             <CuboidCollider position={[0, -2, 0]} args={[20, 0.5, 20]} />
           </Physics>
@@ -70,7 +71,7 @@ export default function ViewingArea() {
 function DynamicPivotControls({
   dummyObject,
 }: {
-  dummyObject: React.RefObject<THREE.Mesh>
+  dummyObject: React.RefObject<THREE.Object3D>
 }) {
   const bounds = useRef(
     new THREE.Box3(
@@ -78,44 +79,59 @@ function DynamicPivotControls({
       new THREE.Vector3(10, 10, 10)
     )
   )
-  const selectedId = useProductStore((s) => s.selectedId)
 
+  const selectedId = useProductStore((s) => s.selectedId)
   const selectedNode = useProductStore((s) => s.selectedNode)
   const updateTransform = useProductStore((s) => s.updateTransform)
-
   const selectedRigidBody = useProductStore((s) => s.selectedRigidBody)
 
   const onMouseDown = useCallback(() => {
-    // disable rigid body so that transform control takes precedence
-    selectedRigidBody?.setEnabled(false)
+    if (!selectedRigidBody) return
+    // make it kinematic while dragging so we can drive it
+    selectedRigidBody.setBodyType(RigidBodyType.KinematicPositionBased, true)
   }, [selectedRigidBody])
+
   const onMouseUp = useCallback(() => {
-    if (!selectedNode || !selectedId) return
+    if (!selectedNode || !selectedId || !selectedRigidBody) return
+
+    // persist transform to store
     updateTransform(selectedId, {
       position: selectedNode.position.toArray(),
       rotation: selectedNode.rotation.toArray(),
       scale: selectedNode.scale.toArray(),
     })
-    selectedRigidBody?.setTranslation(dummyObject.current.position, true)
-    selectedRigidBody?.setRotation(dummyObject.current.quaternion, true)
-    selectedRigidBody?.setEnabled(true)
+
+    // apply last known dummy transform to RB
+    if (dummyObject.current) {
+      selectedRigidBody.setTranslation(dummyObject.current.position, true)
+      selectedRigidBody.setRotation(dummyObject.current.quaternion, true)
+    }
+
+    // return to dynamic so physics takes over again
+    selectedRigidBody.setBodyType(RigidBodyType.Dynamic, true)
 
     console.log("Mouse up event", useProductStore.getState())
   }, [selectedId, selectedNode, updateTransform, selectedRigidBody])
 
   const onChange = useCallback(() => {
-    if (!selectedNode || !selectedId || !dummyObject.current) return
+    if (!selectedRigidBody || !dummyObject.current) return
 
     dummyObject.current.position.clamp(bounds.current.min, bounds.current.max)
 
-    // limit to bounds
-  }, [selectedId, selectedNode, updateTransform, selectedRigidBody])
+    const pos = dummyObject.current.position
+    const quat = dummyObject.current.quaternion
+
+    selectedRigidBody.setNextKinematicTranslation(pos)
+    selectedRigidBody.setNextKinematicRotation(quat)
+
+    console.log("Transform changed", pos, quat)
+  }, [selectedRigidBody])
 
   if (!selectedNode || !selectedId) return null
 
   return (
     <TransformControls
-      object={dummyObject.current}
+      object={dummyObject.current!}
       onChange={onChange}
       onMouseUp={onMouseUp}
       onMouseDown={onMouseDown}
