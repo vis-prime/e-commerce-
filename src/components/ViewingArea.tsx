@@ -1,6 +1,6 @@
 "use client"
 import React, { Suspense, useEffect, useMemo, useRef, useCallback } from "react"
-import { Canvas, ThreeEvent } from "@react-three/fiber"
+import { Canvas, ThreeEvent, useFrame } from "@react-three/fiber"
 import {
   ContactShadows,
   Environment,
@@ -73,6 +73,7 @@ function DynamicPivotControls({
 }: {
   dummyObject: React.RefObject<THREE.Object3D>
 }) {
+  console.log("re render DynamicPivotControls")
   const selectedId = useProductStore((s) => s.selectedId)
   const selectedRigidBody = useProductStore((s) => s.selectedRigidBody)
   const updateTransform = useProductStore((s) => s.updateTransform)
@@ -88,7 +89,12 @@ function DynamicPivotControls({
   }, [selectedRigidBody]) // only runs when selection changes
 
   const onMouseDown = useCallback(() => {
-    selectedRigidBody?.setBodyType(RigidBodyType.KinematicPositionBased, true)
+    if (!dummyObject.current || !selectedRigidBody) return
+    selectedRigidBody.setBodyType(RigidBodyType.KinematicPositionBased, true)
+
+    // Make sure Rapier already knows where the dummy is
+    selectedRigidBody.setNextKinematicTranslation(dummyObject.current.position)
+    selectedRigidBody.setNextKinematicRotation(dummyObject.current.quaternion)
   }, [selectedRigidBody])
 
   const onChange = useCallback(() => {
@@ -136,7 +142,9 @@ function PlacedModels() {
 }
 
 function PlacedModel({ item }: { item: ProductInScene }) {
-  const rbRef = useRef<RapierRigidBody>(null)
+  const rbRef = useRef<RapierRigidBody>(
+    null
+  ) as React.RefObject<RapierRigidBody>
   const groupRef = useRef<THREE.Group>(null)
   const setSelected = useProductStore((s) => s.setSelected)
   const setSelectedNode = useProductStore((s) => s.setSelectedNode)
@@ -186,11 +194,31 @@ function PlacedModel({ item }: { item: ProductInScene }) {
   )
 
   return (
-    <RigidBody ref={rbRef} colliders="hull" position={[0, 5, 0]}>
+    <RigidBody ref={rbRef} colliders="hull" position={[0, 5, 0]} ccd>
       <arrowHelper />
       <Center>
         <primitive object={clonedScene} onClick={onClick} />
       </Center>
+      <ResetOutOfBounds rbRef={rbRef} />
     </RigidBody>
   )
+}
+
+function ResetOutOfBounds({
+  rbRef,
+}: {
+  rbRef: React.RefObject<RapierRigidBody>
+}) {
+  useFrame(() => {
+    if (!rbRef.current) return
+    const pos = rbRef.current.translation()
+    if (pos.y < -5) {
+      // fell below ground
+      rbRef.current.setTranslation({ x: 0, y: 2, z: 0 }, true)
+      rbRef.current.setLinvel({ x: 0, y: 0, z: 0 }, true)
+      rbRef.current.setAngvel({ x: 0, y: 0, z: 0 }, true)
+      rbRef.current.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true)
+    }
+  })
+  return null
 }
