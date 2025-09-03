@@ -8,7 +8,7 @@ import {
   TransformControls,
 } from "@react-three/drei"
 import { ProductInScene, useProductStore } from "@/store/useProductStore"
-import { useGLTF, Box } from "@react-three/drei"
+import { useGLTF, Box, Center } from "@react-three/drei"
 import * as THREE from "three"
 import {
   Physics,
@@ -42,7 +42,7 @@ export default function ViewingArea() {
         <Suspense fallback={null}>
           <Physics debug gravity={[0, -9.81 * 0.2, 0]}>
             <PlacedModels />
-            <CuboidCollider position={[0, -2, 0]} args={[20, 0.5, 20]} />
+            <CuboidCollider position={[0, -0.5, 0]} args={[20, 0.5, 20]} />
           </Physics>
           <Environment preset="city" />
         </Suspense>
@@ -73,68 +73,52 @@ function DynamicPivotControls({
 }: {
   dummyObject: React.RefObject<THREE.Object3D>
 }) {
-  const bounds = useRef(
-    new THREE.Box3(
-      new THREE.Vector3(-10, 0, -10),
-      new THREE.Vector3(10, 10, 10)
-    )
-  )
-
   const selectedId = useProductStore((s) => s.selectedId)
-  const selectedNode = useProductStore((s) => s.selectedNode)
-  const updateTransform = useProductStore((s) => s.updateTransform)
   const selectedRigidBody = useProductStore((s) => s.selectedRigidBody)
+  const updateTransform = useProductStore((s) => s.updateTransform)
+
+  // Initialize dummy on selection
+  useEffect(() => {
+    if (dummyObject.current && selectedRigidBody) {
+      const t = selectedRigidBody.translation()
+      dummyObject.current.position.set(t.x, t.y, t.z)
+      const q = selectedRigidBody.rotation()
+      dummyObject.current.quaternion.set(q.x, q.y, q.z, q.w)
+    }
+  }, [selectedRigidBody]) // only runs when selection changes
 
   const onMouseDown = useCallback(() => {
-    if (!selectedRigidBody) return
-    // make it kinematic while dragging so we can drive it
-    selectedRigidBody.setBodyType(RigidBodyType.KinematicPositionBased, true)
+    selectedRigidBody?.setBodyType(RigidBodyType.KinematicPositionBased, true)
+  }, [selectedRigidBody])
+
+  const onChange = useCallback(() => {
+    if (!dummyObject.current || !selectedRigidBody) return
+    selectedRigidBody.setNextKinematicTranslation(dummyObject.current.position)
+    selectedRigidBody.setNextKinematicRotation(dummyObject.current.quaternion)
   }, [selectedRigidBody])
 
   const onMouseUp = useCallback(() => {
-    if (!selectedNode || !selectedId || !selectedRigidBody) return
+    if (!dummyObject.current || !selectedId || !selectedRigidBody) return
 
-    // persist transform to store
     updateTransform(selectedId, {
-      position: selectedNode.position.toArray(),
-      rotation: selectedNode.rotation.toArray(),
-      scale: selectedNode.scale.toArray(),
+      position: dummyObject.current.position.toArray(),
+      rotation: dummyObject.current.rotation.toArray(),
+      scale: dummyObject.current.scale.toArray(),
     })
 
-    // apply last known dummy transform to RB
-    if (dummyObject.current) {
-      selectedRigidBody.setTranslation(dummyObject.current.position, true)
-      selectedRigidBody.setRotation(dummyObject.current.quaternion, true)
-    }
+    selectedRigidBody.setNextKinematicTranslation(dummyObject.current.position)
+    selectedRigidBody.setNextKinematicRotation(dummyObject.current.quaternion)
+    selectedRigidBody?.setBodyType(RigidBodyType.Dynamic, true)
+  }, [selectedId, selectedRigidBody, updateTransform])
 
-    // return to dynamic so physics takes over again
-    selectedRigidBody.setBodyType(RigidBodyType.Dynamic, true)
-
-    console.log("Mouse up event", useProductStore.getState())
-  }, [selectedId, selectedNode, updateTransform, selectedRigidBody])
-
-  const onChange = useCallback(() => {
-    if (!selectedRigidBody || !dummyObject.current) return
-
-    dummyObject.current.position.clamp(bounds.current.min, bounds.current.max)
-
-    const pos = dummyObject.current.position
-    const quat = dummyObject.current.quaternion
-
-    selectedRigidBody.setNextKinematicTranslation(pos)
-    selectedRigidBody.setNextKinematicRotation(quat)
-
-    console.log("Transform changed", pos, quat)
-  }, [selectedRigidBody])
-
-  if (!selectedNode || !selectedId) return null
+  if (!selectedRigidBody || !selectedId) return null
 
   return (
     <TransformControls
-      object={dummyObject.current!}
+      object={dummyObject.current}
+      onMouseDown={onMouseDown}
       onChange={onChange}
       onMouseUp={onMouseUp}
-      onMouseDown={onMouseDown}
     />
   )
 }
@@ -164,7 +148,6 @@ function PlacedModel({ item }: { item: ProductInScene }) {
 
   const clonedScene = useMemo(() => {
     const clone = scene.clone(true)
-    clone.position.random()
     return clone
   }, [item.product.id, scene])
 
@@ -203,8 +186,11 @@ function PlacedModel({ item }: { item: ProductInScene }) {
   )
 
   return (
-    <RigidBody ref={rbRef} colliders="hull">
-      <primitive object={clonedScene} onClick={onClick} />
+    <RigidBody ref={rbRef} colliders="hull" position={[0, 5, 0]}>
+      <arrowHelper />
+      <Center>
+        <primitive object={clonedScene} onClick={onClick} />
+      </Center>
     </RigidBody>
   )
 }
