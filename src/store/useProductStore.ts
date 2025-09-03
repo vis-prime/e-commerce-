@@ -12,9 +12,9 @@ type Product = {
 export type ProductInScene = {
   sceneId: string
   product: Product
-  position: [number, number, number] // optional for placing
-  rotation: [number, number, number]
-  scale: [number, number, number]
+  position: THREE.Vector3Tuple
+  rotation: THREE.EulerTuple
+  scale: THREE.Vector3Tuple
 }
 
 type ProductStore = {
@@ -50,7 +50,7 @@ export const useProductStore = create<ProductStore>((set) => ({
           sceneId: crypto.randomUUID(),
           product,
           position: [0, 0, 0], // default, can later allow dragging
-          rotation: [0, 0, 0],
+          rotation: [0, 0, 0, "XYZ"],
           scale: [1, 1, 1],
         },
       ],

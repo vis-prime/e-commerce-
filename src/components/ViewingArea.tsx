@@ -1,11 +1,10 @@
 "use client"
 import React, { Suspense, useEffect, useMemo, useRef, useCallback } from "react"
-import { Canvas, useThree } from "@react-three/fiber"
+import { Canvas, ThreeEvent } from "@react-three/fiber"
 import {
   ContactShadows,
   Environment,
   OrbitControls,
-  PivotControls,
   TransformControls,
 } from "@react-three/drei"
 import { ProductInScene, useProductStore } from "@/store/useProductStore"
@@ -13,9 +12,15 @@ import { useGLTF } from "@react-three/drei"
 import * as THREE from "three"
 
 export default function ViewingArea() {
+  const onBgClick = useCallback(() => {
+    // Handle background click
+    console.log("Background clicked")
+  }, [])
+
   return (
     <div className="w-full h-full relative">
       <Canvas
+        onPointerMissed={onBgClick}
         className="!absolute inset-0"
         camera={{ position: [3, 3, 3], fov: 50 }}
         gl={{ antialias: true, powerPreference: "high-performance" }}
@@ -51,38 +56,39 @@ export default function ViewingArea() {
 }
 
 function DynamicPivotControls() {
+  const selectedId = useProductStore((s) => s.selectedId)
+
   const selectedNode = useProductStore((s) => s.selectedNode)
   const updateTransform = useProductStore((s) => s.updateTransform)
 
-  if (!selectedNode) return null
+  const onMouseUp = useCallback(() => {
+    if (!selectedNode || !selectedId) return
+    updateTransform(selectedId, {
+      position: selectedNode.position.toArray(),
+      rotation: selectedNode.rotation.toArray(),
+      scale: selectedNode.scale.toArray(),
+    })
+    console.log("Mouse up event", useProductStore.getState())
+  }, [selectedId, selectedNode, updateTransform])
 
-  return <TransformControls object={selectedNode} />
+  if (!selectedNode || !selectedId) return null
+
+  return <TransformControls object={selectedNode} onMouseUp={onMouseUp} />
 }
 
 function PlacedModels() {
   const placed = useProductStore((s) => s.placed)
-  const selectedId = useProductStore((s) => s.selectedId)
 
   return (
     <>
       {placed.map((item) => (
-        <PlacedModel
-          key={item.sceneId}
-          item={item}
-          selected={item.product.id === selectedId}
-        />
+        <PlacedModel key={item.sceneId} item={item} />
       ))}
     </>
   )
 }
 
-function PlacedModel({
-  item,
-  selected,
-}: {
-  item: ProductInScene
-  selected: boolean
-}) {
+function PlacedModel({ item }: { item: ProductInScene }) {
   const setSelected = useProductStore((s) => s.setSelected)
   const setSelectedNode = useProductStore((s) => s.setSelectedNode)
 
@@ -95,12 +101,15 @@ function PlacedModel({
     return clone
   }, [item.product.id, scene])
 
-  const onClick = useCallback(() => {
-    setSelected(item.product.id)
-    setSelectedNode(clonedScene)
-  }, [clonedScene, item.product.id, setSelected])
+  const onClick = useCallback(
+    (e: ThreeEvent<MouseEvent>) => {
+      console.log(e)
+      e.stopPropagation()
+      setSelected(item.product.id)
+      setSelectedNode(clonedScene)
+    },
+    [clonedScene, item.product.id, setSelected]
+  )
 
-  const content = <primitive object={clonedScene} onClick={onClick} />
-
-  return <group onClick={onClick}>{content}</group>
+  return <primitive object={clonedScene} onClick={onClick} />
 }
