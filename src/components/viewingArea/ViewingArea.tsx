@@ -1,5 +1,12 @@
 "use client"
-import React, { Suspense, useEffect, useMemo, useRef, useCallback } from "react"
+import React, {
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useCallback,
+  use,
+} from "react"
 import { Canvas, ThreeEvent, useFrame } from "@react-three/fiber"
 import {
   ContactShadows,
@@ -8,15 +15,19 @@ import {
   TransformControls,
 } from "@react-three/drei"
 import { ProductInScene, useProductStore } from "@/store/useProductStore"
-import { useGLTF, Box, Center } from "@react-three/drei"
+import { useGLTF, Box, Center, Html } from "@react-three/drei"
 import * as THREE from "three"
 import {
   Physics,
   RigidBody,
   CuboidCollider,
   RapierRigidBody,
+  useSpringJoint,
 } from "@react-three/rapier"
+
+import * as RAPIER from "@dimforge/rapier3d-compat"
 import { RigidBodyType } from "@dimforge/rapier3d-compat"
+import { useControls } from "leva"
 
 export default function ViewingArea() {
   const dummyRef = useRef<THREE.Mesh>(null) as React.RefObject<THREE.Mesh>
@@ -27,8 +38,16 @@ export default function ViewingArea() {
     setSelected(null)
   }, [])
 
+  const gravity = useRef<[number, number, number]>([0, -9.81, 0])
+
+  const { phyDebug } = useControls({
+    phyDebug: false,
+  })
+
   return (
     <div className="w-full h-full relative">
+      <span className="absolute"> Gravity {gravity.current[1]} </span>
+
       <Canvas
         onPointerMissed={onBgClick}
         className="!absolute inset-0"
@@ -40,9 +59,10 @@ export default function ViewingArea() {
         <axesHelper />
 
         <Suspense fallback={null}>
-          <Physics debug gravity={[0, -9.81 * 0.2, 0]}>
+          <Physics debug={phyDebug} gravity={gravity.current}>
             <PlacedModels />
             <CuboidCollider position={[0, -0.5, 0]} args={[20, 0.5, 20]} />
+            <TestModel />
           </Physics>
           <Environment preset="city" />
         </Suspense>
@@ -152,6 +172,7 @@ function PlacedModel({ item }: { item: ProductInScene }) {
   const setSelectedRigidBody = useProductStore((s) => s.setSelectedRigidBody)
 
   const url = `https://yziafoqkerugqyjazqua.supabase.co/storage/v1/object/public/productStorage/${item.product.id}/model.glb`
+  console.log("Loading model from URL:", url)
   const { scene } = useGLTF(url)
 
   const clonedScene = useMemo(() => {
@@ -194,7 +215,7 @@ function PlacedModel({ item }: { item: ProductInScene }) {
   )
 
   return (
-    <RigidBody ref={rbRef} colliders="hull" position={[0, 5, 0]} ccd>
+    <RigidBody ref={rbRef} colliders="hull" position={[0, 5, 0]}>
       <arrowHelper />
       <Center>
         <primitive object={clonedScene} onClick={onClick} />
@@ -221,4 +242,152 @@ function ResetOutOfBounds({
     }
   })
   return null
+}
+
+function TestModel() {
+  const [connected, setConnected] = React.useState(false)
+  const modelRbRef = useRef<any>(null)
+  const testModelRef = useRef<THREE.Group>(null)
+
+  const testUrl =
+    "https://yziafoqkerugqyjazqua.supabase.co/storage/v1/object/public/productStorage/56e53753-6301-47ff-b400-c8cd5412b9ab/model.glb"
+
+  const { scene } = useGLTF(testUrl)
+
+  return (
+    <>
+      {connected && (
+        <SpringJoints connected={connected} modelRbRef={modelRbRef} />
+      )}
+
+      <RigidBody ref={modelRbRef} colliders="hull" position={[0, 1, 0]}>
+        <Center>
+          <primitive
+            ref={testModelRef}
+            object={scene}
+            scale={0.5}
+            position={[0, 0, 0]}
+          />
+        </Center>
+
+        <Html center position={[0, 1.5, 0]}>
+          <button
+            className="backdrop-blur-sm shadow-md bg-accent/50 hover:bg-accent/80 px-2 py-1 rounded-full text-sm"
+            onClick={() => setConnected(!connected)}
+          >
+            {connected ? "Disconnect" : "Connect"}
+          </button>
+        </Html>
+      </RigidBody>
+    </>
+  )
+}
+
+function SpringJoints({
+  connected,
+  modelRbRef,
+}: {
+  modelRbRef: React.RefObject<RapierRigidBody>
+  connected: boolean
+}) {
+  console.log("Render SpringJoints", connected)
+  const restLength = 0.5
+  const stiffness = 1
+  const damping = 1
+  const anchorPos = useRef(new THREE.Vector3())
+  anchorPos.current.y += 2
+
+  const anchorDummy = useRef<THREE.Mesh | null>(null)
+  const tconRef = useRef<any>(null)
+  const anchorRbRef = useRef<RapierRigidBody>(
+    null
+  ) as React.RefObject<RapierRigidBody>
+
+  useEffect(() => {
+    const tCon = tconRef.current
+    const anchor = anchorDummy.current
+    const anchorRb = anchorRbRef.current
+    const body = modelRbRef.current
+    console.log("Effect SpringJoints", { connected, tCon, body, anchor })
+
+    if (connected && tCon && body && anchorRb && anchor) {
+      const pos = body.translation()
+      anchorPos.current.copy(pos)
+      anchorPos.current.y += 2
+      anchor.position.copy(anchorPos.current)
+      anchorRb.setTranslation(anchor.position, true)
+      anchorRb.setRotation(anchor.quaternion, true)
+
+      tCon.attach(anchor)
+      console.log("Attach joint")
+    }
+
+    if (!connected) {
+      tCon.detach(anchor)
+      console.log("Detach joint")
+    }
+  }, [tconRef, modelRbRef, connected])
+
+  const onTconChange = useCallback(() => {
+    if (!anchorRbRef.current || !anchorDummy.current || !connected) return
+    anchorRbRef.current.setNextKinematicTranslation(
+      anchorDummy.current.position
+    )
+    anchorRbRef.current.setNextKinematicRotation(anchorDummy.current.quaternion)
+    modelRbRef.current?.wakeUp()
+  }, [connected])
+
+  const topX = 0.5
+  const topZ = 0.5
+
+  const botX = 0.3
+  const botZ = 0.3
+
+  useSpringJoint(anchorRbRef, modelRbRef, [
+    [-topX, 0, topZ],
+    [-botX, 0.2, botZ],
+    restLength,
+    stiffness,
+    damping,
+  ])
+
+  useSpringJoint(anchorRbRef, modelRbRef, [
+    [-topX, 0, -topZ],
+    [-topX, 0.2, -botZ],
+    restLength,
+    stiffness,
+    damping,
+  ])
+
+  useSpringJoint(anchorRbRef, modelRbRef, [
+    [topX, 0, -topZ],
+    [botX, 0.2, -botZ],
+    restLength,
+    stiffness,
+    damping,
+  ])
+
+  useSpringJoint(anchorRbRef, modelRbRef, [
+    [topX, 0, topZ],
+    [botX, 0.2, botZ],
+    restLength,
+    stiffness,
+    damping,
+  ])
+
+  return (
+    <>
+      <TransformControls ref={tconRef} onChange={onTconChange} />
+      <mesh ref={anchorDummy}>
+        <boxGeometry args={[0.1, 0.1, 0.1]} />
+        <meshStandardMaterial color="red" />
+      </mesh>
+
+      <RigidBody
+        ref={anchorRbRef}
+        type="kinematicPosition"
+        colliders={false}
+      ></RigidBody>
+    </>
+  )
 }
