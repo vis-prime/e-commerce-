@@ -1,6 +1,9 @@
 "use client"
 import { useState } from "react"
 import { useAuthStore } from "@/store/useAuthStore"
+import { Input } from "@/components/ui/input"
+import { Button } from "./ui/button"
+import { AnimatePresence, motion } from "framer-motion"
 
 interface LoginModalProps {
   onClose: () => void
@@ -13,7 +16,8 @@ export default function LoginModal({ onClose }: LoginModalProps) {
   const { login, error: authError } = useAuthStore((s) => s)
   const [error, setError] = useState<string | null>(null)
 
-  const handleLogin = async () => {
+  const handleLogin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
     setLoading(true)
     setError(null)
     try {
@@ -27,47 +31,48 @@ export default function LoginModal({ onClose }: LoginModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 w-96 max-w-full">
-        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
-          Login
-        </h2>
+    <div
+      onClick={onClose}
+      className="fixed inset-0 bg-secondary/50 backdrop-blur-sm  flex items-center justify-center z-50"
+    >
+      <motion.div
+        className="bg-secondary rounded-xl shadow-lg p-6 w-96 max-w-full"
+        initial={{ y: 50, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 50, opacity: 0 }}
+      >
+        <h2 className="text-lg font-semibold  mb-4">Login</h2>
 
-        <div className="flex flex-col space-y-3">
-          <input
+        <form className="flex flex-col space-y-3" onSubmit={handleLogin}>
+          <Input
             type="email"
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <input
+          <Input
             type="password"
             placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           {(error || authError) && (
             <p className="text-red-500 text-sm">{error || authError}</p>
           )}
 
-          <button
-            onClick={handleLogin}
+          <Button
+            type="submit"
             disabled={loading}
-            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:bg-gray-400"
+            className=" bg-blue-500  hover:bg-blue-600 disabled:bg-gray-400"
           >
             {loading ? "Logging in..." : "Login"}
-          </button>
+          </Button>
 
-          <button
-            onClick={onClose}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-          >
+          <Button type="button" variant={"outline"} onClick={onClose}>
             Cancel
-          </button>
-        </div>
-      </div>
+          </Button>
+        </form>
+      </motion.div>
     </div>
   )
 }
