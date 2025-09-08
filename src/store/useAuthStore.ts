@@ -9,6 +9,8 @@ interface AuthState {
   signUp: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
   init: () => Promise<void>
+  resetPassword: (email: string) => Promise<any>
+  updatePassword: (newPassword: string) => Promise<any>
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -52,5 +54,24 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: async () => {
     await supabase.auth.signOut()
     set({ session: null, error: null })
+  },
+
+  updatePassword: async (newPassword: string) => {
+    const { data, error } = await supabase.auth.updateUser({
+      password: newPassword,
+    })
+    if (error) throw error
+    console.log("Password updated:", data)
+    return data
+  },
+
+  resetPassword: async (email: string) => {
+    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.href}update-password`,
+    })
+
+    if (error) throw error
+    console.log("Password reset email sent:", data)
+    return data
   },
 }))

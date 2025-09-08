@@ -4,7 +4,6 @@ import { useAuthStore } from "@/store/useAuthStore"
 import { supabase } from "@/lib/supabaseClient"
 import { UserRoundX, UserCheck } from "lucide-react"
 import { ThemeToggle } from "./theme-toggle"
-import LoginModal from "./LoginModal"
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -14,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Button } from "./ui/button"
 import { AnimatePresence } from "framer-motion"
+import AuthModal from "./AuthModal"
 
 export default function NavBar() {
   const init = useAuthStore((s) => s.init)
@@ -23,8 +23,9 @@ export default function NavBar() {
   }, [init])
   const session = useAuthStore((s) => s.session) // or session user
   const [showLogin, setShowLogin] = useState(false)
+  const [showSignup, setShowSignup] = useState(false)
 
-  const email = session?.user?.email || ""
+  const userName = session?.user?.email.split("@")[0] || ""
 
   const handleLogout = async () => {
     await logout()
@@ -46,14 +47,18 @@ export default function NavBar() {
               variant={"outline"}
               className="flex items-center space-x-1 "
             >
-              {session ? <UserCheck /> : <UserRoundX />}
+              {session ? (
+                <UserCheck className="stroke-green-500" />
+              ) : (
+                <UserRoundX />
+              )}
             </Button>
           </DropdownMenuTrigger>
 
           <DropdownMenuContent align="end">
             {session ? (
               <>
-                <DropdownMenuLabel>{email}</DropdownMenuLabel>
+                <DropdownMenuLabel>{userName}</DropdownMenuLabel>
                 <DropdownMenuItem
                   onClick={handleLogout}
                   className="text-red-500 cursor-pointer"
@@ -64,7 +69,7 @@ export default function NavBar() {
             ) : (
               <DropdownMenuItem
                 onClick={() => setShowLogin(true)}
-                className="text-blue-500 cursor-pointer"
+                className=" cursor-pointer"
               >
                 Login
               </DropdownMenuItem>
@@ -74,7 +79,7 @@ export default function NavBar() {
       </div>
 
       <AnimatePresence>
-        {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}
+        {showLogin && <AuthModal onClose={() => setShowLogin(false)} />}
       </AnimatePresence>
     </nav>
   )

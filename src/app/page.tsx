@@ -4,17 +4,15 @@ import { fetchProducts } from "@/lib/fetchProducts"
 import { RapierTest } from "@/components/RapierTest"
 import MainEditor from "@/components/MainEditor"
 import JointDemo from "@/components/ThreadJointTest"
-import { getUserClaims, supabase } from "@/lib/supabaseClient"
-import LoginLogout from "@/components/LoginLogout"
+import { supabase } from "@/lib/supabaseClient"
 import NavBar from "@/components/NavBar"
-import { useAuthStore } from "@/store/useAuthStore"
 
 export default function Home() {
   return (
     <>
       <NavBar />
       {/* <LoginLogout /> */}
-      {/* <MainEditor /> */}
+      <MainEditor />
       {/* <JointDemo /> */}
     </>
   )
