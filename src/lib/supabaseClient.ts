@@ -9,3 +9,15 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+
+export async function getUserClaims() {
+  const { data, error } = await supabase.auth.getClaims()
+
+  console.log("User claims data:", data)
+
+  if (error) {
+    throw new Error(`Failed to get user claims: ${error.message}`)
+  }
+
+  return data
+}
