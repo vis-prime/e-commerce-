@@ -28,8 +28,6 @@ export const useAuthStore = create<AuthState>((set) => ({
           session: sessionData.session ?? null,
           error: null,
         })
-
-        console.log("Initialized auth state with user:", sessionData)
       }
     } catch (err: any) {
       set({ error: err.message })
