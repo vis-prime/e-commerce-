@@ -32,9 +32,7 @@ import { useControls } from "leva"
 export default function ViewingArea() {
   const dummyRef = useRef<THREE.Mesh>(null) as React.RefObject<THREE.Mesh>
   const setSelectedId = useProductStore((s) => s.setSelectedId)
-  const { selectedRigidBodyRef, setSelectedRigidBodyRef } = useProductStore(
-    (s) => s
-  )
+  const { setSelectedRigidBodyRef } = useProductStore((s) => s)
 
   const onBgClick = useCallback(() => {
     // Handle background click
@@ -159,143 +157,6 @@ function ModelItem({ item }: { item: ProductInScene }) {
   )
 }
 
-function DynamicPivotControls({
-  dummyObject,
-}: {
-  dummyObject: React.RefObject<THREE.Object3D>
-}) {
-  console.log("re render DynamicPivotControls")
-  const selectedId = useProductStore((s) => s.selectedId)
-  const selectedRigidBody = useProductStore((s) => s.selectedRigidBody)
-  const updateTransform = useProductStore((s) => s.updateTransform)
-
-  // Initialize dummy on selection
-  useEffect(() => {
-    if (dummyObject.current && selectedRigidBody) {
-      const t = selectedRigidBody.translation()
-      dummyObject.current.position.set(t.x, t.y, t.z)
-      const q = selectedRigidBody.rotation()
-      dummyObject.current.quaternion.set(q.x, q.y, q.z, q.w)
-    }
-  }, [selectedRigidBody]) // only runs when selection changes
-
-  const onMouseDown = useCallback(() => {
-    if (!dummyObject.current || !selectedRigidBody) return
-    selectedRigidBody.setBodyType(RigidBodyType.KinematicPositionBased, true)
-
-    // Make sure Rapier already knows where the dummy is
-    selectedRigidBody.setNextKinematicTranslation(dummyObject.current.position)
-    selectedRigidBody.setNextKinematicRotation(dummyObject.current.quaternion)
-  }, [selectedRigidBody])
-
-  const onChange = useCallback(() => {
-    if (!dummyObject.current || !selectedRigidBody) return
-    selectedRigidBody.setNextKinematicTranslation(dummyObject.current.position)
-    selectedRigidBody.setNextKinematicRotation(dummyObject.current.quaternion)
-  }, [selectedRigidBody])
-
-  const onMouseUp = useCallback(() => {
-    if (!dummyObject.current || !selectedId || !selectedRigidBody) return
-
-    updateTransform(selectedId, {
-      position: dummyObject.current.position.toArray(),
-      rotation: dummyObject.current.rotation.toArray(),
-      scale: dummyObject.current.scale.toArray(),
-    })
-
-    selectedRigidBody.setNextKinematicTranslation(dummyObject.current.position)
-    selectedRigidBody.setNextKinematicRotation(dummyObject.current.quaternion)
-    selectedRigidBody?.setBodyType(RigidBodyType.Dynamic, true)
-  }, [selectedId, selectedRigidBody, updateTransform])
-
-  if (!selectedRigidBody || !selectedId) return null
-
-  return (
-    <TransformControls
-      object={dummyObject.current}
-      onMouseDown={onMouseDown}
-      onChange={onChange}
-      onMouseUp={onMouseUp}
-    />
-  )
-}
-
-function PlacedModels() {
-  const placed = useProductStore((s) => s.placed)
-
-  return (
-    <>
-      {placed.map((item) => (
-        <PlacedModel key={item.sceneId} item={item} />
-      ))}
-    </>
-  )
-}
-
-function PlacedModel({ item }: { item: ProductInScene }) {
-  const rbRef = useRef<RapierRigidBody>(
-    null
-  ) as React.RefObject<RapierRigidBody>
-  const groupRef = useRef<THREE.Group>(null)
-  const setSelected = useProductStore((s) => s.setSelected)
-  const setSelectedNode = useProductStore((s) => s.setSelectedNode)
-  const setSelectedMaterials = useProductStore((s) => s.setSelectedMaterials)
-  const setSelectedRigidBody = useProductStore((s) => s.setSelectedRigidBody)
-
-  const url = `https://yziafoqkerugqyjazqua.supabase.co/storage/v1/object/public/productStorage/${item.product.id}/model.glb`
-  console.log("Loading model from URL:", url)
-  const { scene } = useGLTF(url)
-
-  const clonedScene = useMemo(() => {
-    const clone = scene.clone(true)
-    return clone
-  }, [item.product.id, scene])
-
-  const onClick = useCallback(
-    (e: ThreeEvent<MouseEvent>) => {
-      e.stopPropagation()
-
-      // collect all unique materials
-      const materials: Record<
-        string,
-        THREE.MeshStandardMaterial | THREE.MeshPhysicalMaterial
-      > = {}
-      clonedScene.traverse((obj: any) => {
-        if (obj.isMesh && obj.material) {
-          if (Array.isArray(obj.material)) {
-            obj.material.forEach(
-              (
-                mat: THREE.MeshStandardMaterial | THREE.MeshPhysicalMaterial
-              ) => {
-                materials[mat.uuid] = mat
-              }
-            )
-          } else {
-            materials[obj.material.uuid] = obj.material
-          }
-        }
-      })
-
-      setSelected(item.product.id)
-      setSelectedNode(clonedScene)
-      setSelectedMaterials(Object.values(materials)) // store array of materials
-      if (rbRef.current) setSelectedRigidBody(rbRef.current)
-      console.log("Clicked on model", useProductStore.getState())
-    },
-    [clonedScene, item.product.id, setSelected]
-  )
-
-  return (
-    <RigidBody ref={rbRef} colliders="hull" position={[0, 5, 0]}>
-      <arrowHelper />
-      <Center>
-        <primitive object={clonedScene} onClick={onClick} />
-      </Center>
-      <ResetOutOfBounds rbRef={rbRef} />
-    </RigidBody>
-  )
-}
-
 function ResetOutOfBounds({
   rbRef,
 }: {
@@ -313,48 +174,6 @@ function ResetOutOfBounds({
     }
   })
   return null
-}
-
-function TestModel() {
-  const [connected, setConnected] = React.useState(false)
-  const modelRbRef = useRef<any>(null)
-  const testModelRef = useRef<THREE.Group>(null)
-
-  const testUrl =
-    "https://yziafoqkerugqyjazqua.supabase.co/storage/v1/object/public/productStorage/56e53753-6301-47ff-b400-c8cd5412b9ab/model.glb"
-
-  const { scene } = useGLTF(testUrl)
-
-  return (
-    <>
-      {connected && (
-        <SpringTransformsControls
-          connected={connected}
-          modelRbRef={modelRbRef}
-        />
-      )}
-
-      <RigidBody ref={modelRbRef} colliders="hull" position={[0, 1, 0]}>
-        <Center>
-          <primitive
-            ref={testModelRef}
-            object={scene}
-            scale={0.5}
-            position={[0, 0, 0]}
-          />
-        </Center>
-
-        <Html center position={[0, 1.5, 0]}>
-          <button
-            className="backdrop-blur-sm shadow-md bg-accent/50 hover:bg-accent/80 px-2 py-1 rounded-full text-sm"
-            onClick={() => setConnected(!connected)}
-          >
-            {connected ? "Disconnect" : "Connect"}
-          </button>
-        </Html>
-      </RigidBody>
-    </>
-  )
 }
 
 function SpringTransformsControls({
