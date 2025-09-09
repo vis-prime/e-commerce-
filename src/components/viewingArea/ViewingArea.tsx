@@ -31,17 +31,22 @@ import { useControls } from "leva"
 
 export default function ViewingArea() {
   const dummyRef = useRef<THREE.Mesh>(null) as React.RefObject<THREE.Mesh>
-  const setSelected = useProductStore((s) => s.setSelected)
+  const setSelectedId = useProductStore((s) => s.setSelectedId)
+  const { selectedRigidBodyRef, setSelectedRigidBodyRef } = useProductStore(
+    (s) => s
+  )
+
   const onBgClick = useCallback(() => {
     // Handle background click
     console.log("Background clicked")
-    setSelected(null)
+    setSelectedId(null)
+    setSelectedRigidBodyRef(null)
   }, [])
 
   const gravity = useRef<[number, number, number]>([0, -9.81, 0])
 
   const { phyDebug } = useControls({
-    phyDebug: false,
+    phyDebug: true,
   })
 
   return (
@@ -60,9 +65,10 @@ export default function ViewingArea() {
 
         <Suspense fallback={null}>
           <Physics debug={phyDebug} gravity={gravity.current}>
-            <PlacedModels />
+            {/* <PlacedModels /> */}
+            <AllModels />
             <CuboidCollider position={[0, -0.5, 0]} args={[20, 0.5, 20]} />
-            <TestModel />
+            {/* <TestModel /> */}
           </Physics>
           <Environment preset="city" />
         </Suspense>
@@ -82,9 +88,71 @@ export default function ViewingArea() {
           resolution={256}
           color="#0000dd"
         />
-        <DynamicPivotControls dummyObject={dummyRef} />
+        {/* <DynamicPivotControls dummyObject={dummyRef} /> */}
       </Canvas>
     </div>
+  )
+}
+
+function AllModels() {
+  const placed = useProductStore((s) => s.placed)
+  const { selectedRigidBodyRef } = useProductStore((s) => s)
+  return (
+    <>
+      {placed.map((item) => (
+        <ModelItem key={item.sceneId} item={item} />
+      ))}
+
+      {selectedRigidBodyRef && (
+        <SpringTransformsControls modelRbRef={selectedRigidBodyRef} />
+      )}
+    </>
+  )
+}
+
+function ModelItem({ item }: { item: ProductInScene }) {
+  const rbRef = useRef<RapierRigidBody>(
+    null
+  ) as React.RefObject<RapierRigidBody>
+
+  const setSelectedId = useProductStore((s) => s.setSelectedId)
+  const setSelectedRigidBodyRef = useProductStore(
+    (s) => s.setSelectedRigidBodyRef
+  )
+
+  const url = `https://yziafoqkerugqyjazqua.supabase.co/storage/v1/object/public/productStorage/${item.product.id}/model.glb`
+  // console.log("Loading model from URL:", url)
+  const { scene } = useGLTF(url)
+
+  const clonedScene = useMemo(() => {
+    const clone = scene.clone(true)
+    return clone
+  }, [item.product.id, scene])
+
+  const onClick = useCallback(
+    (e: ThreeEvent<MouseEvent>) => {
+      e.stopPropagation()
+      setSelectedId(item.product.id)
+      setSelectedRigidBodyRef(rbRef)
+      console.log("Clicked on model", useProductStore.getState())
+    },
+    [item]
+  )
+
+  return (
+    <>
+      <RigidBody
+        ref={rbRef}
+        colliders="hull"
+        position={[0, 5, 0]}
+        userData={{ id: item.product.name }}
+      >
+        <Center>
+          <primitive object={clonedScene} onClick={onClick} />
+        </Center>
+        <ResetOutOfBounds rbRef={rbRef} />
+      </RigidBody>
+    </>
   )
 }
 
@@ -257,7 +325,10 @@ function TestModel() {
   return (
     <>
       {connected && (
-        <SpringJoints connected={connected} modelRbRef={modelRbRef} />
+        <SpringTransformsControls
+          connected={connected}
+          modelRbRef={modelRbRef}
+        />
       )}
 
       <RigidBody ref={modelRbRef} colliders="hull" position={[0, 1, 0]}>
@@ -283,14 +354,13 @@ function TestModel() {
   )
 }
 
-function SpringJoints({
-  connected,
+function SpringTransformsControls({
   modelRbRef,
 }: {
   modelRbRef: React.RefObject<RapierRigidBody>
-  connected: boolean
+  // connected: boolean
 }) {
-  console.log("Render SpringJoints", connected)
+  console.log("Render SpringTransformsControls", { modelRbRef })
   const restLength = 0.5
   const stiffness = 1
   const damping = 1
@@ -308,34 +378,32 @@ function SpringJoints({
     const anchor = anchorDummy.current
     const anchorRb = anchorRbRef.current
     const body = modelRbRef.current
-    console.log("Effect SpringJoints", { connected, tCon, body, anchor })
 
-    if (connected && tCon && body && anchorRb && anchor) {
+    if (tCon && body && anchorRb && anchor) {
       const pos = body.translation()
       anchorPos.current.copy(pos)
-      anchorPos.current.y += 2
+      anchorPos.current.y += 1
       anchor.position.copy(anchorPos.current)
       anchorRb.setTranslation(anchor.position, true)
       anchorRb.setRotation(anchor.quaternion, true)
 
       tCon.attach(anchor)
-      console.log("Attach joint")
+      console.log("Attach joint", body.userData)
     }
-
-    if (!connected) {
+    return () => {
       tCon.detach(anchor)
-      console.log("Detach joint")
+      console.log("Cleanup detach joint", body.userData)
     }
-  }, [tconRef, modelRbRef, connected])
+  }, [tconRef, modelRbRef])
 
   const onTconChange = useCallback(() => {
-    if (!anchorRbRef.current || !anchorDummy.current || !connected) return
+    if (!anchorRbRef.current || !anchorDummy.current) return
     anchorRbRef.current.setNextKinematicTranslation(
       anchorDummy.current.position
     )
     anchorRbRef.current.setNextKinematicRotation(anchorDummy.current.quaternion)
     modelRbRef.current?.wakeUp()
-  }, [connected])
+  }, [tconRef, modelRbRef])
 
   const topX = 0.5
   const topZ = 0.5
@@ -353,7 +421,7 @@ function SpringJoints({
 
   useSpringJoint(anchorRbRef, modelRbRef, [
     [-topX, 0, -topZ],
-    [-topX, 0.2, -botZ],
+    [-botX, 0.2, -botZ],
     restLength,
     stiffness,
     damping,
