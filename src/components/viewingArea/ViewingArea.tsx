@@ -62,6 +62,9 @@ export default function ViewingArea() {
           <Physics debug={phyDebug} gravity={gravity.current}>
             <AllModels />
           </Physics>
+        </Suspense>
+
+        <Suspense fallback={null}>
           <Environment preset="city" />
         </Suspense>
 
@@ -94,7 +97,9 @@ function AllModels() {
   return (
     <>
       {placed.map((item) => (
-        <ModelItem key={item.sceneId} item={item} />
+        <Suspense key={item.sceneId} fallback={null}>
+          <ModelItem item={item} />
+        </Suspense>
       ))}
 
       {selectedRigidBodyRef && (
