@@ -41,7 +41,7 @@ export default function ViewingArea() {
     console.log("Background clicked")
     setSelectedId(null)
     setSelectedRigidBodyRef(null)
-  }, [])
+  }, [setSelectedId, setSelectedRigidBodyRef])
 
   const gravity = useRef<[number, number, number]>([0, -9.81, 0])
 
@@ -104,7 +104,10 @@ function AllModels() {
       ))}
 
       {selectedRigidBodyRef && (
-        <SpringTransformsControls modelRbRef={selectedRigidBodyRef} />
+        <SpringTransformsControls
+          key={(selectedRigidBodyRef.current.userData as { id: string }).id}
+          modelRbRef={selectedRigidBodyRef}
+        />
       )}
     </>
   )
@@ -136,7 +139,7 @@ function ModelItem({ item }: { item: ProductInScene }) {
       setSelectedRigidBodyRef(rbRef)
       console.log("Clicked on model", useProductStore.getState())
     },
-    [item]
+    [item, rbRef, setSelectedId, setSelectedRigidBodyRef]
   )
 
   return (
@@ -145,7 +148,7 @@ function ModelItem({ item }: { item: ProductInScene }) {
         ref={rbRef}
         colliders="hull"
         position={[0, 5, 0]}
-        userData={{ id: item.product.name }}
+        userData={{ id: item.product.name + "-" + item.sceneId }}
       >
         <Center>
           <primitive object={clonedScene} onClick={onClick} />
@@ -360,7 +363,7 @@ function SpringTransformsControls({
   modelRbRef: React.RefObject<RapierRigidBody>
   // connected: boolean
 }) {
-  console.log("Render SpringTransformsControls", { modelRbRef })
+  console.log("Render SpringTransformsControls")
   const restLength = 0.5
   const stiffness = 1
   const damping = 1
@@ -382,7 +385,6 @@ function SpringTransformsControls({
 
     if (body && anchorRb && anchor) {
       const pos = body.translation()
-      console.log("Model pos", body.userData, pos)
       anchorPos.current.copy(pos)
       anchorPos.current.y += 1
       anchor.position.copy(anchorPos.current)
@@ -391,7 +393,7 @@ function SpringTransformsControls({
 
       console.log("Attach joint", body.userData)
     }
-  }, [anchorDummy, anchorRbRef, modelRbRef.current])
+  }, [])
 
   const onTconChange = useCallback(() => {
     if (!anchorRbRef.current || !anchorDummy.current) return
@@ -442,10 +444,13 @@ function SpringTransformsControls({
 
   return (
     <>
-      <mesh ref={anchorDummy}>
-        <boxGeometry args={[0.1, 0.1, 0.1]} />
-        <meshStandardMaterial color="red" />
-      </mesh>
+      <group ref={anchorDummy}>
+        <mesh>
+          <boxGeometry args={[0.1, 0.1, 0.1]} />
+          <meshBasicMaterial color="red" />
+        </mesh>
+      </group>
+
       <TransformControls
         object={anchorDummy}
         ref={tconRef}
