@@ -23,10 +23,9 @@ import {
   CuboidCollider,
   RapierRigidBody,
   useSpringJoint,
+  MeshCollider,
 } from "@react-three/rapier"
 
-import * as RAPIER from "@dimforge/rapier3d-compat"
-import { RigidBodyType } from "@dimforge/rapier3d-compat"
 import { useControls } from "leva"
 
 export default function ViewingArea() {
@@ -117,43 +116,88 @@ function ModelItem({ item }: { item: ProductInScene }) {
   ) as React.RefObject<RapierRigidBody>
 
   const setSelectedId = useProductStore((s) => s.setSelectedId)
+  const setSelectedMaterials = useProductStore((s) => s.setSelectedMaterials)
+
   const setSelectedRigidBodyRef = useProductStore(
     (s) => s.setSelectedRigidBodyRef
   )
 
   const url = `https://yziafoqkerugqyjazqua.supabase.co/storage/v1/object/public/productStorage/${item.product.id}/model.glb`
-  // console.log("Loading model from URL:", url)
   const { scene } = useGLTF(url)
 
   const clonedScene = useMemo(() => {
     const clone = scene.clone(true)
+    clone.name = item.product.name + "-" + item.sceneId
+    clone.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        const oldMat = child.material
+        child.material = oldMat.clone()
+      }
+    })
     return clone
-  }, [item.product.id, scene])
+  }, [item.sceneId, scene])
+
+  // Find collider mesh
+
+  const colliderMesh: THREE.Mesh | null = useMemo(() => {
+    let found: THREE.Mesh | null = null
+    clonedScene.traverse((child) => {
+      if (
+        child instanceof THREE.Mesh &&
+        child.name.toLowerCase().includes("collider")
+      ) {
+        found = child
+        child.visible = false
+      }
+    })
+    return found
+  }, [clonedScene])
 
   const onClick = useCallback(
     (e: ThreeEvent<MouseEvent>) => {
       e.stopPropagation()
       setSelectedId(item.product.id)
       setSelectedRigidBodyRef(rbRef)
+
+      const mats: (THREE.MeshStandardMaterial | THREE.MeshPhysicalMaterial)[] =
+        []
+      clonedScene.traverse((child) => {
+        if (child instanceof THREE.Mesh && child.visible) {
+          const mat = child.material
+          if (mat instanceof THREE.MeshStandardMaterial) {
+            mats.push(mat)
+          }
+        }
+      })
+
+      console.log("Model clicked:", { clonedScene, mats })
+
+      setSelectedMaterials(mats)
+
       console.log("Clicked on model", useProductStore.getState())
     },
     [item, rbRef, setSelectedId, setSelectedRigidBodyRef]
   )
 
   return (
-    <>
-      <RigidBody
-        ref={rbRef}
-        colliders="hull"
-        position={[0, 5, 0]}
-        userData={{ id: item.product.name + "-" + item.sceneId }}
-      >
-        <Center>
-          <primitive object={clonedScene} onClick={onClick} />
-        </Center>
-        <ResetOutOfBounds rbRef={rbRef} />
-      </RigidBody>
-    </>
+    <RigidBody
+      ref={rbRef}
+      colliders={colliderMesh ? false : "hull"}
+      position={[0, 5, 0]}
+      userData={{ id: item.product.name + "-" + item.sceneId }}
+    >
+      <Center>
+        <primitive object={clonedScene} onClick={onClick} />
+        {colliderMesh && (
+          <MeshCollider type="trimesh">
+            <mesh geometry={(colliderMesh as THREE.Mesh).geometry}>
+              <meshStandardMaterial visible={false} />
+            </mesh>
+          </MeshCollider>
+        )}
+      </Center>
+      <ResetOutOfBounds rbRef={rbRef} />
+    </RigidBody>
   )
 }
 
@@ -184,7 +228,7 @@ function SpringTransformsControls({
 }) {
   console.log("Render SpringTransformsControls")
   const restLength = 0.5
-  const stiffness = 1
+  const stiffness = 10
   const damping = 1
   const anchorPos = useRef(new THREE.Vector3())
   anchorPos.current.y += 2
@@ -210,9 +254,9 @@ function SpringTransformsControls({
       anchorRb.setTranslation(anchor.position, true)
       anchorRb.setRotation(anchor.quaternion, true)
 
-      console.log("Attach joint", body.userData)
+      // console.log("Attach joint", body.userData)
     }
-  }, [])
+  }, [modelRbRef.current])
 
   const onTconChange = useCallback(() => {
     if (!anchorRbRef.current || !anchorDummy.current) return
@@ -221,7 +265,7 @@ function SpringTransformsControls({
     )
     anchorRbRef.current.setNextKinematicRotation(anchorDummy.current.quaternion)
     modelRbRef.current?.wakeUp()
-  }, [tconRef, anchorDummy, modelRbRef.current])
+  }, [modelRbRef.current])
 
   const topX = 0.5
   const topZ = 0.5

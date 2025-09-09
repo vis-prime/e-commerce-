@@ -8,7 +8,7 @@ import * as THREE from "three"
 
 export default function EditingArea() {
   return (
-    <div className="w-full h-full p-4 overflow-y-auto space-y-2">
+    <div className="w-full h-full p-2 overflow-y-auto border-t md:border-l md:border-t-0">
       <div className="flex gap-2 mb-4">
         <Button>Save</Button>
         <Button variant="outline">Export</Button>
