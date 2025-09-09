@@ -56,16 +56,11 @@ export default function ViewingArea() {
         camera={{ position: [3, 3, 3], fov: 50 }}
         gl={{ antialias: true, powerPreference: "high-performance" }}
       >
-        <hemisphereLight intensity={0.1} />
-        <directionalLight position={[10, 10, 10]} intensity={1} />
         <axesHelper />
 
         <Suspense fallback={null}>
           <Physics debug={phyDebug} gravity={gravity.current}>
-            {/* <PlacedModels /> */}
             <AllModels />
-            <CuboidCollider position={[0, -0.5, 0]} args={[20, 0.5, 20]} />
-            {/* <TestModel /> */}
           </Physics>
           <Environment preset="city" />
         </Suspense>
@@ -77,13 +72,15 @@ export default function ViewingArea() {
           <meshStandardMaterial color="orange" />
         </mesh>
 
+        <directionalLight position={[5, 5, 5]} intensity={1} />
+
         <ContactShadows
-          opacity={1}
+          opacity={0.75}
           scale={10}
           blur={1}
           far={10}
           resolution={256}
-          color="#0000dd"
+          color="#000033"
         />
         {/* <DynamicPivotControls dummyObject={dummyRef} /> */}
       </Canvas>
@@ -106,6 +103,9 @@ function AllModels() {
           modelRbRef={selectedRigidBodyRef}
         />
       )}
+
+      {/* floor */}
+      <CuboidCollider position={[0, -0.5, 0]} args={[20, 0.5, 20]} />
     </>
   )
 }
