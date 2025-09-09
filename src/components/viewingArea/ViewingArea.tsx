@@ -367,34 +367,31 @@ function SpringTransformsControls({
   const anchorPos = useRef(new THREE.Vector3())
   anchorPos.current.y += 2
 
-  const anchorDummy = useRef<THREE.Mesh | null>(null)
+  const anchorDummy = useRef<THREE.Object3D>(
+    null
+  ) as React.RefObject<THREE.Object3D>
   const tconRef = useRef<any>(null)
   const anchorRbRef = useRef<RapierRigidBody>(
     null
   ) as React.RefObject<RapierRigidBody>
 
   useEffect(() => {
-    const tCon = tconRef.current
     const anchor = anchorDummy.current
     const anchorRb = anchorRbRef.current
     const body = modelRbRef.current
 
-    if (tCon && body && anchorRb && anchor) {
+    if (body && anchorRb && anchor) {
       const pos = body.translation()
+      console.log("Model pos", body.userData, pos)
       anchorPos.current.copy(pos)
       anchorPos.current.y += 1
       anchor.position.copy(anchorPos.current)
       anchorRb.setTranslation(anchor.position, true)
       anchorRb.setRotation(anchor.quaternion, true)
 
-      tCon.attach(anchor)
       console.log("Attach joint", body.userData)
     }
-    return () => {
-      tCon.detach(anchor)
-      console.log("Cleanup detach joint", body.userData)
-    }
-  }, [tconRef, modelRbRef])
+  }, [anchorDummy, anchorRbRef, modelRbRef.current])
 
   const onTconChange = useCallback(() => {
     if (!anchorRbRef.current || !anchorDummy.current) return
@@ -403,7 +400,7 @@ function SpringTransformsControls({
     )
     anchorRbRef.current.setNextKinematicRotation(anchorDummy.current.quaternion)
     modelRbRef.current?.wakeUp()
-  }, [tconRef, modelRbRef])
+  }, [tconRef, anchorDummy, modelRbRef.current])
 
   const topX = 0.5
   const topZ = 0.5
@@ -445,11 +442,15 @@ function SpringTransformsControls({
 
   return (
     <>
-      <TransformControls ref={tconRef} onChange={onTconChange} />
       <mesh ref={anchorDummy}>
         <boxGeometry args={[0.1, 0.1, 0.1]} />
         <meshStandardMaterial color="red" />
       </mesh>
+      <TransformControls
+        object={anchorDummy}
+        ref={tconRef}
+        onChange={onTconChange}
+      />
 
       <RigidBody
         ref={anchorRbRef}
