@@ -52,7 +52,7 @@ export default function ViewingArea() {
 
       <Canvas
         onPointerMissed={onBgClick}
-        className="!absolute inset-0"
+        className="!absolute inset-0 touch-none"
         camera={{ position: [3, 3, 3], fov: 50 }}
         gl={{ antialias: true, powerPreference: "high-performance" }}
       >
